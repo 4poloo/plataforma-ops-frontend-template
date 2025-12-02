@@ -1,0 +1,56 @@
+// Textos de UI centralizados (permite ajustar copy sin tocar componentes)
+
+export const COPY = {
+  titulo: "Informes",
+  filtros: {
+    rango: "Rango",
+    linea: "Línea",
+    sku: "Producto/SKU",
+    estado: "Estado OT",
+    agrupar: "Agrupar por",
+    aplicar: "Aplicar",
+    limpiar: "Limpiar",
+    hoy: "Hoy",
+    siete: "Últimos 7 días",
+    mes: "Mes actual",
+    personalizado: "Personalizado",
+    day: "Día",
+    week: "Semana",
+    month: "Mes",
+  },
+  kpi: {
+    creadas: "OT creadas",
+    cerradas: "OT cerradas",
+    cumplimiento: "Cumplimiento plan",
+    merma: "Merma",
+    tooltipCumpl: "Unidades producidas / planificadas en el periodo.",
+    tooltipMerma: "Merma total / producción total en el periodo.",
+  },
+  charts: {
+    otPorDia: "OT por período",
+    topProductos: "Top 5 productos más fabricados",
+    empty: "No hay datos para este rango. Ajusta los filtros.",
+  },
+  tabla: {
+    titulo: "Detalle",
+    columnas: {
+      ot: "OT",
+      estado: "Estado",
+      fecha: "Fecha",
+      linea: "Línea",
+      sku: "SKU PT",
+      desc: "Descripción",
+      plan: "Plan (u)",
+      real: "Real (u)",
+      merma: "Merma (u)",
+      cumplimiento: "Cumplimiento",
+    },
+    vacia: "Sin resultados para estos filtros.",
+  },
+  export: {
+    exportar: "Exportar",
+    generando: "Generando archivo…",
+    listo: "Tu archivo está listo",
+    error: "No pudimos generar el archivo. Reintenta.",
+  },
+};
