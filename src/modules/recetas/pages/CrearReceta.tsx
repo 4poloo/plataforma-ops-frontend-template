@@ -6,7 +6,7 @@ import { recetasApi } from '../services/recetas.api';
 import { useNavigate } from 'react-router-dom';
 import RecetaImportDialog from '../components/RecetaImportDialog';
 import { findDuplicateSku } from '../utils/materiales';
-import { useLogAction } from '../../logs/hooks/useLogAction.ts';
+import { useLogAction } from '../../logs/hooks/useLogAction';
 import { useFlashBanner } from '../../../global/components/FlashBanner';
 
 export default function CrearRecetaPage() {

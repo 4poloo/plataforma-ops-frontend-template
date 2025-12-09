@@ -3,7 +3,7 @@ import type { RecetaDetalleDTO, MaterialLinea } from "../models/receta.model";
 import ValorizacionPanel from "./ValorizacionPanel";
 import MaterialesGrid from "./MaterialesGrid";
 import { recetasApi } from "../services/recetas.api";
-import { useLogAction } from "../../logs/hooks/useLogAction.ts";
+import { useLogAction } from "../../logs/hooks/useLogAction";
 import { useFlashBanner } from "../../../global/components/FlashBanner";
 
 type Props = {

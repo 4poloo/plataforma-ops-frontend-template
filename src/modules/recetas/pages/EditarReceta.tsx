@@ -9,7 +9,7 @@ import ValorizacionPanel from '../components/ValorizacionPanel';
 
 import { recetasApi } from '../services/recetas.api';
 import type { MaterialLinea, RecetaDetalleDTO } from '../models/receta.model';
-import { useLogAction } from '../../logs/hooks/useLogAction.ts';
+import { useLogAction } from '../../logs/hooks/useLogAction';
 
 export default function EditarRecetaPage() {
   const { id } = useParams<{ id: string }>();

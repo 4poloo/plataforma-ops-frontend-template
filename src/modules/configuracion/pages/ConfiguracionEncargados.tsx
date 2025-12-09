@@ -9,7 +9,7 @@ import EncargadosFiltros from "../components/encargados/EncargadosFiltros";
 import EncargadosTabla from "../components/encargados/EncargadosTabla";
 import EncargadoModal from "../components/encargados/EncargadoModal";
 import EncargadosPaginacion from "../components/encargados/EncargadosPaginacion";
-import { useLogAction } from "../../logs/hooks/useLogAction.ts";
+import { useLogAction } from "../../logs/hooks/useLogAction";
 import { useFlashBanner } from "../../../global/components/FlashBanner";
 
 type Filters = {

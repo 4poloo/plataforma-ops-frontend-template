@@ -32,7 +32,7 @@ import {
 } from "../services/work-orders.api";
 import { type RecetaMaterialOT } from "../services/recetas-ot.api";
 import { fetchEncargados, type Encargado } from "../services/encargados.api";
-import { useLogAction } from "../../logs/hooks/useLogAction.ts";
+import { useLogAction } from "../../logs/hooks/useLogAction";
 import { useFeaturePermissions } from "../../auth/hooks/useAuth";
 import { useFlashBanner } from "../../../global/components/FlashBanner";
 
