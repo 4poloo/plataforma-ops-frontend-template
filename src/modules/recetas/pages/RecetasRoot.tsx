@@ -9,7 +9,7 @@ import ValorizacionDrawer from "../components/ValorizacionDrawer";
 import { useRecetas } from "../hooks/useRecetas";
 import { recetasApi } from "../services/recetas.api";
 import type { RecetaDetalleDTO } from "../models/receta.model";
-import { useLogAction } from "../../logs/hooks/useLogAction";
+import { useLogAction } from "../../logs/hooks/useLogAction.ts";
 import { useFeaturePermissions } from "../../auth/hooks/useAuth";
 import { useFlashBanner } from "../../../global/components/FlashBanner";
 

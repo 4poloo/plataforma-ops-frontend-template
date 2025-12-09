@@ -9,7 +9,7 @@ import ValorizacionPanel from "./ValorizacionPanel";
 
 import { recetasApi } from "../services/recetas.api";
 import { findDuplicateSku } from "../utils/materiales";
-import { useLogAction } from "../../logs/hooks/useLogAction";
+import { useLogAction } from "../../logs/hooks/useLogAction.ts";
 import { useFlashBanner } from "../../../global/components/FlashBanner";
 
 type Props = {

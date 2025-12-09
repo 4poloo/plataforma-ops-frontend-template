@@ -10,7 +10,7 @@ import {
 } from "../services/productos.api";
 import { calcIVA19 } from "../utils/iva";
 import { getSubfamilyNames } from "../constants/familias"
-import { useLogAction } from "../../logs/hooks/useLogAction";
+import { useLogAction } from "../../logs/hooks/useLogAction.ts";
 
 /** ============================================================
  *  Utilidades internas

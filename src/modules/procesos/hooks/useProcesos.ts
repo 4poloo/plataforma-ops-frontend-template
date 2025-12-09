@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Filtros, Proceso, SortKey, SortOrder } from "../types";
 import { procesosService } from "../services/procesos.service";
-import { useLogAction } from "../../logs/hooks/useLogAction";
+import { useLogAction } from "../../logs/hooks/useLogAction.ts";
 
 const defaultFiltros: Filtros = {
   search: "",

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import LogsFiltros from "../components/logs/LogsFiltros";
-import LogsTabla from "../components/logs/LogsTabla";
-import LogDetalleModal from "../components/logs/LogDetalleModal";
-import LogsPaginacion from "../components/logs/LogsPaginacion";
+import LogsFiltros from "../components/logs/LogsFiltros.tsx";
+import LogsTabla from "../components/logs/LogsTabla.tsx";
+import LogDetalleModal from "../components/logs/LogDetalleModal.tsx";
+import LogsPaginacion from "../components/logs/LogsPaginacion.tsx";
 import {
   listLogs,
   type LogEntry,
   type LogSeverity,
-} from "../../logs/services/logs.api";
+} from "../../logs/services/logs.api.ts";
 
 const PAGE_SIZE = 10;
 
@@ -116,7 +116,7 @@ export default function ConfiguracionLogs() {
         </div>
       )}
 
-      <LogsTabla rows={rows} loading={loading} onOpen={(log) => setDetail(log)} />
+      <LogsTabla rows={rows} loading={loading} onOpen={(log: LogEntry) => setDetail(log)} />
 
       <div className="flex justify-end">
         <LogsPaginacion page={page} pages={pages} onPageChange={setPage} />

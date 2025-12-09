@@ -5,7 +5,7 @@ import UsuarioModal from "../components/UsuarioModal";
 import UsuariosPaginacion from "../components/usuarios/UsuariosPaginacion";
 import ChangePasswordModal from "../components/usuarios/ChangePasswordModal";
 import { USER_ROLE_OPTIONS } from "../constants/users";
-import { useLogAction } from "../../logs/hooks/useLogAction";
+import { useLogAction } from "../../logs/hooks/useLogAction.ts";
 import {
   changeUserPassword,
   createUser,
