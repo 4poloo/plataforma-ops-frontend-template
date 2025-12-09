@@ -1,5 +1,5 @@
-# Logs
-logs
+# Logs (solo en raíz)
+/logs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -11,8 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
-.env
-.env.*
+# Permite versionar .env y .env.development; sigue ignorando variantes locales/producción
+.env.local
+.env.*.local
+.env.production
+.env.production.*
 !.env.example
 !.env.template
 .npmrc
