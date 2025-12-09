@@ -4,6 +4,7 @@ import type {
   RecetaListadoDTO,
   MaterialLinea,
 } from '../models/receta.model';
+import { DEMO_MODE, loadDemoData, updateDemoData } from "../../../global/demo/config";
 
 /* ============================================================================
    BASE URL ROBUSTA
@@ -38,6 +39,193 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   }
   return r.json();
 }
+
+const readDemoRecetas = (): RecetaDetalleDTO[] => loadDemoData().recetas;
+const writeDemoRecetas = (items: RecetaDetalleDTO[]) => {
+  updateDemoData((draft) => {
+    draft.recetas = items;
+  });
+};
+
+const demoApi = {
+  search: async (query: {
+    codigo?: string;
+    descripcion?: string;
+    habilitada?: boolean;
+    page?: number;
+    limit?: number;
+  }) => {
+    const all = readDemoRecetas();
+    const codigo = (query.codigo ?? "").trim().toLowerCase();
+    const descripcion = (query.descripcion ?? "").trim().toLowerCase();
+    const habilitada = query.habilitada;
+    const filtered = all.filter((r) => {
+      const matchesCodigo = codigo ? r.codigo.toLowerCase().includes(codigo) : true;
+      const matchesDesc = descripcion ? r.descripcion.toLowerCase().includes(descripcion) : true;
+      const matchesHab =
+        habilitada === undefined ? true : r.habilitada === habilitada;
+      return matchesCodigo && matchesDesc && matchesHab;
+    });
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.max(1, query.limit ?? 15);
+    const start = (page - 1) * limit;
+    return {
+      items: filtered.slice(start, start + limit).map((r) => ({
+        id: r.id,
+        codigo: r.codigo,
+        descripcion: r.descripcion,
+        version: r.version,
+        vigente: r.vigente,
+        habilitada: r.habilitada,
+        actualizadoEn: r.auditoria.modEn ?? r.auditoria.creadoEn ?? "",
+        actualizadoPor: r.auditoria.modPor ?? r.auditoria.creadoPor ?? "",
+      })),
+      total: filtered.length,
+      page,
+      limit,
+    };
+  },
+  searchByPtId: async (ptId: string) => {
+    const code = (ptId ?? "").trim().toLowerCase();
+    return readDemoRecetas()
+      .filter((r) => r.codigo.toLowerCase() === code)
+      .map((r) => ({
+        id: r.id,
+        codigo: r.codigo,
+        descripcion: r.descripcion,
+        version: r.version,
+        vigente: r.vigente,
+        habilitada: r.habilitada,
+        actualizadoEn: r.auditoria.modEn ?? r.auditoria.creadoEn ?? "",
+        actualizadoPor: r.auditoria.modPor ?? r.auditoria.creadoPor ?? "",
+      }));
+  },
+  getById: async (id: string) => {
+    const code = (id ?? "").trim().toLowerCase();
+    const found =
+      readDemoRecetas().find(
+        (r) => r.id.toLowerCase() === code || r.codigo.toLowerCase() === code
+      ) ?? null;
+    if (!found) throw new Error("Receta no encontrada");
+    return found;
+  },
+  getHistory: async (id: string) => {
+    const rec = await demoApi.getById(id);
+    return [
+      {
+        version: rec.version,
+        fecha: rec.auditoria.modEn || rec.auditoria.creadoEn,
+        usuario: rec.auditoria.modPor || rec.auditoria.creadoPor || "demo",
+        notas: rec.vigente ? "vigente" : "",
+      },
+    ];
+  },
+  getMaterialBySku: async (sku: string) => {
+    const normalized = (sku ?? "").trim().toUpperCase();
+    if (!normalized) return null;
+    const rec = readDemoRecetas().find((r) =>
+      r.materiales.some((m) => m.sku.toUpperCase() === normalized)
+    );
+    const mat = rec?.materiales.find((m) => m.sku.toUpperCase() === normalized);
+    if (mat) {
+      return { sku: mat.sku, descripcion: mat.descripcion ?? "", unidad: mat.unidad };
+    }
+    const prod = loadDemoData().productos.find(
+      (p) => p.sku.toUpperCase() === normalized
+    );
+    if (prod) {
+      return { sku: prod.sku, descripcion: prod.name, unidad: prod.uom };
+    }
+    return null;
+  },
+  publish: async (id: string, version?: number) => {
+    const recs = readDemoRecetas();
+    const idx = recs.findIndex(
+      (r) => r.id.toLowerCase() === id.toLowerCase() || r.codigo.toLowerCase() === id.toLowerCase()
+    );
+    if (idx === -1) throw new Error("Receta no encontrada");
+    recs[idx] = { ...recs[idx], vigente: true, habilitada: true, version: version ?? recs[idx].version };
+    writeDemoRecetas(recs);
+  },
+  toggleHabilitada: async (id: string, habilitar: boolean) => {
+    const recs = readDemoRecetas().map((r) =>
+      r.codigo.toLowerCase() === id.toLowerCase() || r.id.toLowerCase() === id.toLowerCase()
+        ? { ...r, habilitada: habilitar, vigente: habilitar && r.vigente }
+        : r
+    );
+    writeDemoRecetas(recs);
+  },
+  update: async (id: string, patch: Partial<Omit<RecetaDetalleDTO, "id" | "codigo">>) => {
+    const recs = readDemoRecetas();
+    const idx = recs.findIndex(
+      (r) => r.id.toLowerCase() === id.toLowerCase() || r.codigo.toLowerCase() === id.toLowerCase()
+    );
+    if (idx === -1) throw new Error("Receta no encontrada");
+    const next = { ...recs[idx] };
+    if (patch.descripcion !== undefined) next.descripcion = patch.descripcion;
+    if (patch.cantidadBase !== undefined) next.cantidadBase = patch.cantidadBase;
+    if (patch.unidadBase !== undefined) next.unidadBase = patch.unidadBase as any;
+    if (patch.materiales) next.materiales = patch.materiales as MaterialLinea[];
+    next.auditoria = {
+      ...next.auditoria,
+      modEn: new Date().toISOString(),
+      modPor: "demo",
+    };
+    recs[idx] = next;
+    writeDemoRecetas(recs);
+    return next;
+  },
+  create: async (input: {
+    codigo: string;
+    descripcion?: string;
+    cantidadBase: number;
+    unidadBase: string;
+    materiales: MaterialLinea[];
+    publicar?: boolean;
+  }) => {
+    const nuevo: RecetaDetalleDTO = {
+      id: input.codigo,
+      codigo: input.codigo,
+      descripcion: input.descripcion ?? input.codigo,
+      version: 1,
+      vigente: Boolean(input.publicar),
+      habilitada: Boolean(input.publicar),
+      cantidadBase: input.cantidadBase,
+      unidadBase: input.unidadBase,
+      materiales: input.materiales,
+      auditoria: { creadoPor: "demo", creadoEn: new Date().toISOString() },
+    };
+    writeDemoRecetas([...readDemoRecetas(), nuevo]);
+    return nuevo;
+  },
+  cloneVersion: async (id: string) => {
+    const rec = await demoApi.getById(id);
+    const clone: RecetaDetalleDTO = {
+      ...rec,
+      version: rec.version + 1,
+      vigente: false,
+      habilitada: rec.habilitada,
+      auditoria: { ...rec.auditoria, modEn: new Date().toISOString(), modPor: "demo" },
+    };
+    writeDemoRecetas(readDemoRecetas().map((r) => (r.id === rec.id ? clone : r)));
+    return clone;
+  },
+  importMaterials: async (id: string, modo: "REPLACE" | "UPSERT", materiales: MaterialLinea[]) => {
+    const rec = await demoApi.getById(id);
+    let nextMats = materiales;
+    if (modo === "UPSERT") {
+      const map = new Map<string, MaterialLinea>();
+      rec.materiales.forEach((m) => map.set(m.sku, m));
+      materiales.forEach((m) => map.set(m.sku, { ...map.get(m.sku), ...m }));
+      nextMats = Array.from(map.values());
+    }
+    return demoApi.update(id, { materiales: nextMats });
+  },
+  exportReceta: async (id: string) => demoApi.getById(id),
+  updateNombre: async (id: string, nombre: string) => {
+    await demoApi.update(id, { descripcion: nombre });
+  },
+};
 
 /* -------------------- mapeos Back → Front -------------------- */
 async function mapListado(doc: any, productCache?: Map<string, any>): Promise<RecetaListadoDTO> {
@@ -99,6 +287,9 @@ export const recetasApi = {
     page?: number;
     limit?: number;
   }) {
+    if (DEMO_MODE) {
+      return demoApi.search(query);
+    }
     const { descripcion = '', codigo = '', page = 1, limit = 15 } = query;
     const skip = (page - 1) * limit;
 
@@ -161,6 +352,9 @@ export const recetasApi = {
 
   /** Búsqueda directa por código PT/SKU con coincidencia exacta. */
   async searchByPtId(ptId: string): Promise<RecetaListadoDTO[]> {
+    if (DEMO_MODE) {
+      return demoApi.searchByPtId(ptId);
+    }
     const normalized = (ptId ?? '').trim();
     if (!normalized) return [];
 
@@ -203,6 +397,9 @@ export const recetasApi = {
    *  Enriquecemos componentes con /products/{productId} para obtener sku/nombre/unidad.
    */
   async getById(id: string): Promise<RecetaDetalleDTO> {
+    if (DEMO_MODE) {
+      return demoApi.getById(id);
+    }
     // 1) Traer el documento base (por SKU o por productPTId)
     let base: any | null = null;
 
@@ -313,6 +510,9 @@ export const recetasApi = {
 
   /** Historial derivado (placeholder simple). Mejora cuando el back exponga historial real. */
   async getHistory(id: string): Promise<Array<{ version: number; fecha: string; usuario: string; notas?: string }>> {
+    if (DEMO_MODE) {
+      return demoApi.getHistory(id);
+    }
     const doc = await this.getById(id);
     return [
       {
@@ -329,6 +529,9 @@ export const recetasApi = {
     sku: string,
     opts?: { signal?: AbortSignal }
   ): Promise<{ sku: string; descripcion: string; unidad: string } | null> {
+    if (DEMO_MODE) {
+      return demoApi.getMaterialBySku(sku);
+    }
     const raw = (sku ?? '').trim();
     if (!raw) return null;
     const normalized = raw.toUpperCase();
@@ -379,6 +582,10 @@ export const recetasApi = {
 
   /** Publicar una versión (si no pasas `version`, publica la actual). */
   async publish(id: string, version?: number): Promise<void> {
+    if (DEMO_MODE) {
+      await demoApi.publish(id, version);
+      return;
+    }
     let v = version;
     let key = id; // puede ser sku o objectId
     if (!v || isObjectId(id)) {
@@ -396,6 +603,10 @@ export const recetasApi = {
 
   /** Deshabilitar receta completa (limpia vigenteVersion). */
   async toggleHabilitada(id: string, habilitar: boolean): Promise<void> {
+    if (DEMO_MODE) {
+      await demoApi.toggleHabilitada(id, habilitar);
+      return;
+    }
     if (habilitar) {
       const det = await this.getById(id);
       await this.publish(det.codigo, det.version);
@@ -416,6 +627,9 @@ export const recetasApi = {
     id: string,
     patch: Partial<Omit<RecetaDetalleDTO, 'id' | 'codigo'>>
   ): Promise<RecetaDetalleDTO> {
+    if (DEMO_MODE) {
+      return demoApi.update(id, patch);
+    }
     const det = await this.getById(id); // resolvemos sku y versión vigente/actual
     const sku = det.codigo;
     const version = det.version;
@@ -480,6 +694,9 @@ export const recetasApi = {
     materiales: MaterialLinea[];
     publicar?: boolean;
   }): Promise<RecetaDetalleDTO> {
+    if (DEMO_MODE) {
+      return demoApi.create(input);
+    }
     const sku = input.codigo;
     const numero = 1;
 
@@ -535,6 +752,9 @@ export const recetasApi = {
 
   /** Clonar como nueva versión (borrador) desde la versión actual. */
   async cloneVersion(id: string): Promise<RecetaDetalleDTO> {
+    if (DEMO_MODE) {
+      return demoApi.cloneVersion(id);
+    }
     const det = await this.getById(id);
     const sku = det.codigo;
     const nextVersion = det.version + 1;
@@ -572,6 +792,9 @@ export const recetasApi = {
     modo: 'REPLACE' | 'UPSERT',
     materiales: MaterialLinea[]
   ): Promise<RecetaDetalleDTO> {
+    if (DEMO_MODE) {
+      return demoApi.importMaterials(id, modo, materiales);
+    }
     const det = await this.getById(id);
     const sku = det.codigo;
     const version = det.version;
@@ -605,10 +828,17 @@ export const recetasApi = {
 
   /** Exportar: usamos el mismo detalle. */
   async exportReceta(id: string): Promise<RecetaDetalleDTO> {
+    if (DEMO_MODE) {
+      return demoApi.exportReceta(id);
+    }
     return this.getById(id);
   },
 
   async updateNombre(id: string, nombre: string): Promise<void> {
+    if (DEMO_MODE) {
+      await demoApi.updateNombre(id, nombre);
+      return;
+    }
     // Puede venir SKU o ObjectId → resolvemos el SKU real
     const det = await this.getById(id);
     const sku = det.codigo;

@@ -1,4 +1,5 @@
 import { API_ROOT } from "../../produccion/services/work-orders.api";
+import { DEMO_MODE, loadDemoData, updateDemoData } from "../../../global/demo/config";
 
 export type UserStatus = "active" | "inactive" | string;
 export type UserRole = string;
@@ -135,7 +136,34 @@ const normalizeUserErrorMessage = (message: string): string => {
   return trimmed || "Se produjo un error inesperado.";
 };
 
+const readDemoUsers = (): Usuario[] => loadDemoData().usuarios;
+const writeDemoUsers = (items: Usuario[]) => {
+  updateDemoData((draft) => {
+    draft.usuarios = items;
+  });
+};
+
 export async function listUsers(params?: ListUsersParams): Promise<ListUsersResponse> {
+  if (DEMO_MODE) {
+    const all = readDemoUsers();
+    const q = (params?.q ?? "").trim().toLowerCase();
+    const role = params?.role?.toLowerCase();
+    const status = params?.status?.toLowerCase();
+    const filtered = all.filter((u) => {
+      const matchesQ =
+        !q ||
+        [u.email, u.nombre, u.apellido, u.alias]
+          .map((v) => (v ?? "").toLowerCase())
+          .some((v) => v.includes(q));
+      const matchesRole = role ? u.role.toLowerCase() === role : true;
+      const matchesStatus = status ? u.status.toLowerCase() === status : true;
+      return matchesQ && matchesRole && matchesStatus;
+    });
+    const skip = Math.max(0, params?.skip ?? 0);
+    const limit = Math.max(1, params?.limit ?? filtered.length);
+    const items = filtered.slice(skip, skip + limit);
+    return { items, total: filtered.length, skip, limit };
+  }
   const qs = new URLSearchParams();
   if (params?.q) qs.set("q", params.q);
   if (params?.role) qs.set("role", params.role);
@@ -167,6 +195,9 @@ export async function listUsers(params?: ListUsersParams): Promise<ListUsersResp
 export async function getUserById(userId: string): Promise<Usuario | null> {
   const id = String(userId ?? "").trim();
   if (!id) return null;
+  if (DEMO_MODE) {
+    return readDemoUsers().find((u) => u.id === id) ?? null;
+  }
 
   const res = await fetch(`${USERS_URL}/${encodeURIComponent(id)}`, { method: "GET" });
   if (res.status === 404) return null;
@@ -183,6 +214,13 @@ export async function getUserById(userId: string): Promise<Usuario | null> {
 export async function getUserByAlias(alias: string): Promise<Usuario | null> {
   const normalized = String(alias ?? "").trim();
   if (!normalized) return null;
+  if (DEMO_MODE) {
+    const target = normalized.toLowerCase();
+    return (
+      readDemoUsers().find((u) => u.alias.toLowerCase() === target) ??
+      null
+    );
+  }
 
   const res = await fetch(`${USERS_URL}/by-alias/${encodeURIComponent(normalized)}`, {
     method: "GET",
@@ -204,6 +242,12 @@ export async function getUserByAlias(alias: string): Promise<Usuario | null> {
 export async function getUserByEmail(email: string): Promise<Usuario | null> {
   const normalized = String(email ?? "").trim();
   if (!normalized) return null;
+  if (DEMO_MODE) {
+    const target = normalized.toLowerCase();
+    return (
+      readDemoUsers().find((u) => u.email.toLowerCase() === target) ?? null
+    );
+  }
 
   const res = await fetch(`${USERS_URL}/by-email/${encodeURIComponent(normalized)}`, {
     method: "GET",
@@ -223,6 +267,20 @@ export async function getUserByEmail(email: string): Promise<Usuario | null> {
 }
 
 export async function createUser(payload: CreateUserPayload): Promise<Usuario> {
+  if (DEMO_MODE) {
+    const nuevo: Usuario = {
+      id: `u-${Date.now()}`,
+      email: payload.email,
+      nombre: payload.nombre,
+      apellido: payload.apellido,
+      alias: payload.alias,
+      role: payload.role,
+      status: "active",
+      createdAt: new Date().toISOString(),
+    };
+    writeDemoUsers([...readDemoUsers(), nuevo]);
+    return nuevo;
+  }
   const res = await fetch(USERS_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -241,6 +299,14 @@ export async function createUser(payload: CreateUserPayload): Promise<Usuario> {
 export async function updateUser(userId: string, payload: UpdateUserPayload): Promise<Usuario> {
   const id = String(userId ?? "").trim();
   if (!id) throw new Error("ID de usuario requerido");
+  if (DEMO_MODE) {
+    const next = readDemoUsers().map((u) =>
+      u.id === id ? { ...u, ...payload } : u
+    );
+    writeDemoUsers(next);
+    const updated = next.find((u) => u.id === id);
+    return updated ?? { id, ...payload, email: "", alias: "", nombre: "", apellido: "" };
+  }
 
   const res = await fetch(`${USERS_URL}/${encodeURIComponent(id)}`, {
     method: "PUT",
@@ -263,6 +329,9 @@ export async function changeUserPassword(
 ): Promise<void> {
   const id = String(userId ?? "").trim();
   if (!id) throw new Error("ID de usuario requerido");
+  if (DEMO_MODE) {
+    return;
+  }
 
   const res = await fetch(`${USERS_URL}/${encodeURIComponent(id)}/change-password`, {
     method: "POST",

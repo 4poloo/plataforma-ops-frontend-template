@@ -3,10 +3,24 @@ import type { Proceso } from "../types";
 import type { Filtros } from "../types";
 
 const KEY = "sc.procesos";
+const DEFAULT_PROCESOS: Proceso[] = [
+  { codigo: "MZCL-01", nombre: "Mezclado base detergente", costo: 120000 },
+  { codigo: "ENV-02", nombre: "Envasado botella 1L", costo: 45000 },
+  { codigo: "ETQ-03", nombre: "Etiquetado y embalaje", costo: 30000 },
+];
 
 function read(): Proceso[] {
   const raw = localStorage.getItem(KEY);
-  return raw ? (JSON.parse(raw) as Proceso[]) : [];
+  if (!raw) {
+    write(DEFAULT_PROCESOS);
+    return DEFAULT_PROCESOS;
+  }
+  const parsed = JSON.parse(raw) as Proceso[];
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    write(DEFAULT_PROCESOS);
+    return DEFAULT_PROCESOS;
+  }
+  return parsed;
 }
 function write(data: Proceso[]) {
   localStorage.setItem(KEY, JSON.stringify(data));

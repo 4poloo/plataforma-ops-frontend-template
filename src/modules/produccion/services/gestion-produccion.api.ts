@@ -1,5 +1,6 @@
 // src/modules/produccion/services/gestion-produccion.api.ts
 import { API_ROOT } from "./work-orders.api";
+import { DEMO_MODE, loadDemoData, updateDemoData } from "../../../global/demo/config";
 
 const GESTION_PRODUCCION_URL = `${API_ROOT}/v1/gestion-produccion`;
 
@@ -78,7 +79,17 @@ const adaptRecord = (raw: unknown): GestionProduccionRecord => {
   };
 };
 
+const readDemoGestion = (): GestionProduccionRecord[] => loadDemoData().gestion;
+const writeDemoGestion = (items: GestionProduccionRecord[]) => {
+  updateDemoData((draft) => {
+    draft.gestion = items;
+  });
+};
+
 export async function listGestionProduccion(): Promise<GestionProduccionRecord[]> {
+  if (DEMO_MODE) {
+    return readDemoGestion();
+  }
   const res = await fetch(GESTION_PRODUCCION_URL, { method: "GET" });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -92,6 +103,19 @@ export async function listGestionProduccion(): Promise<GestionProduccionRecord[]
 export async function createGestionProduccion(
   payload: GestionProduccionCreatePayload
 ): Promise<void> {
+  if (DEMO_MODE) {
+    const next: GestionProduccionRecord = {
+      _id: `gp-${Date.now()}`,
+      OT: payload.OT,
+      contenido: payload.contenido,
+      estado: payload.estado,
+      merma: payload.merma,
+      cantidad_fin: payload.cantidad_fin,
+      audit: { createdAt: new Date().toISOString() },
+    };
+    writeDemoGestion([...readDemoGestion(), next]);
+    return;
+  }
   const res = await fetch(GESTION_PRODUCCION_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -111,6 +135,10 @@ export async function getGestionProduccionByOt(
 ): Promise<GestionProduccionRecord | null> {
   const normalized = String(ot ?? "").trim();
   if (!normalized) return null;
+  if (DEMO_MODE) {
+    const target = Number(normalized);
+    return readDemoGestion().find((item) => item.OT === target) ?? null;
+  }
 
   const fetchFromList = async () => {
     const all = await listGestionProduccion();
@@ -158,6 +186,29 @@ export async function updateGestionProduccionStatus(
   ot: string | number,
   payload: GestionProduccionEstadoPayload
 ): Promise<void> {
+  if (DEMO_MODE) {
+    const target = String(ot);
+    const next = readDemoGestion().map((item) =>
+      String(item.OT) === target
+        ? {
+            ...item,
+            estado: payload.estado,
+            contenido: {
+              ...item.contenido,
+              fecha_ini: payload.fecha_ini,
+              fecha_fin: payload.fecha_fin,
+              hora_entrega: payload.hora_entrega,
+              cantidad_hora_extra: payload.cantidad_hora_extra,
+              cantidad_hora_normal: payload.cantidad_hora_normal,
+              descripcion: payload.descripcion ?? item.contenido.descripcion,
+            },
+            audit: { ...(item.audit ?? {}), updatedAt: new Date().toISOString() },
+          }
+        : item
+    );
+    writeDemoGestion(next);
+    return;
+  }
   const url = `${GESTION_PRODUCCION_URL}/${encodeURIComponent(String(ot))}/estado`;
   const res = await fetch(url, {
     method: "PATCH",

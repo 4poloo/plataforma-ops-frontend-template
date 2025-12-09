@@ -1,6 +1,7 @@
 // services/productos.api.ts
 import type { Producto } from "../types/producto";
 import { resolveCodes } from "../constants/familias";
+import { DEMO_MODE, loadDemoData, updateDemoData } from "../../../global/demo/config";
 
 /* --------------------------------------------------------------
    Utilidad: fetch con timeout para evitar requests colgados
@@ -138,10 +139,41 @@ const adaptProducto = (raw: any): Producto => {
   };
 };
 
+const readDemoProductos = (): Producto[] => loadDemoData().productos;
+const writeDemoProductos = (items: Producto[]) => {
+  updateDemoData((draft) => {
+    draft.productos = items;
+  });
+};
+
 /* --------------------------------------------------------------
    Listado principal: /api/v1/products/by-mixed/
 -------------------------------------------------------------- */
 export async function listProductosMixedAPI(params: ListMixedQuery): Promise<ListResult> {
+  if (DEMO_MODE) {
+    const all = readDemoProductos();
+    const q = (params.name ?? "").trim().toLowerCase();
+    const dg = (params.dg ?? "").trim().toLowerCase();
+    const dsg = (params.dsg ?? "").trim().toLowerCase();
+    const tipo = (params.tipo ?? "").trim().toUpperCase();
+    const activo = params.activo;
+    const filtered = all.filter((p) => {
+      const matchesQ =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q);
+      const matchesDg = dg ? (p.groupName ?? "").toLowerCase() === dg : true;
+      const matchesDsg = dsg ? (p.subgroupName ?? "").toLowerCase() === dsg : true;
+      const matchesTipo = tipo ? p.classification.toUpperCase() === tipo : true;
+      const matchesActivo = typeof activo === "boolean" ? Boolean(p.activo ?? true) === activo : true;
+      return matchesQ && matchesDg && matchesDsg && matchesTipo && matchesActivo;
+    });
+    const limit = Math.max(1, Math.min(1000, params.limit ?? 20));
+    const skip = Math.max(0, params.skip ?? 0);
+    const items = filtered.slice(skip, skip + limit);
+    const hasMore = skip + limit < filtered.length;
+    return { items, limit, skip, total: filtered.length, hasMore };
+  }
   const base = import.meta.env.VITE_API_BASE_URL as string;
   if (!base) throw new Error("VITE_API_BASE_URL no está definido");
 
@@ -201,6 +233,22 @@ export async function searchProductosBySkuAPI(
   opts?: { limit?: number; skip?: number }
 ): Promise<ListResult> {
   const base = import.meta.env.VITE_API_BASE_URL as string;
+  if (DEMO_MODE) {
+    const normalized = (rawSku ?? "").trim().toLowerCase();
+    const all = readDemoProductos().filter((p) =>
+      p.sku.toLowerCase().includes(normalized)
+    );
+    const limit = opts?.limit != null ? Math.max(1, Math.min(100, opts.limit)) : all.length;
+    const skip = opts?.skip != null ? Math.max(0, opts.skip) : 0;
+    const items = all.slice(skip, skip + limit);
+    return {
+      items,
+      limit,
+      skip,
+      total: all.length,
+      hasMore: skip + limit < all.length,
+    };
+  }
   if (!base) throw new Error("VITE_API_BASE_URL no está definido");
 
   const normalized = (rawSku ?? "").trim();
@@ -367,6 +415,16 @@ const buildCreatePayload = (p: Producto) => {
 
 // CREATE: POST /api/v1/products/Create/
 export async function createProductoAPI(producto: Producto) {
+  if (DEMO_MODE) {
+    const nuevo: Producto = {
+      ...producto,
+      id: producto.id ?? `p-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    writeDemoProductos([...readDemoProductos(), nuevo]);
+    return nuevo;
+  }
   const base = import.meta.env.VITE_API_BASE_URL as string;
   if (!base) throw new Error("VITE_API_BASE_URL no está definido");
 
@@ -391,6 +449,14 @@ export async function createProductoAPI(producto: Producto) {
 }
 
 export async function updateProductoAPI(producto: Producto) {
+  if (DEMO_MODE) {
+    const id = (producto as any).id ?? producto.sku;
+    const next = readDemoProductos().map((p) =>
+      (p.id ?? p.sku) === id ? { ...p, ...producto, updatedAt: new Date().toISOString() } : p
+    );
+    writeDemoProductos(next);
+    return producto;
+  }
   const base = import.meta.env.VITE_API_BASE_URL as string;
   if (!base) throw new Error("VITE_API_BASE_URL no está definido");
 
@@ -418,6 +484,15 @@ export async function updateProductoAPI(producto: Producto) {
 // ⬇️ Añade estas funciones al final del archivo (antes del export de toggle si gustas)
 // IMPORT: VALIDATE (multipart)  POST /api/v1/products/import/validate
 export async function importValidate(file: File): Promise<ImportValidateResponse> {
+  if (DEMO_MODE) {
+    return {
+      batchId: "demo-batch",
+      columns: ["sku", "nombre", "unidad", "precio"],
+      rows: [{ sku: "PT-999", nombre: "Producto Demo", unidad: "UN", precio: 1000 }],
+      errorsByRow: {},
+      warningsByRow: { 1: ["Se actualizará si existe"] },
+    };
+  }
   const base = import.meta.env.VITE_API_BASE_URL as string;
   if (!base) throw new Error("VITE_API_BASE_URL no está definido");
 
@@ -438,6 +513,9 @@ export async function importValidate(file: File): Promise<ImportValidateResponse
 
 // IMPORT: CONFIRM  POST /api/v1/products/import/confirm  (body: { batchId })
 export async function importConfirm(batchId: string) {
+  if (DEMO_MODE) {
+    return { ok: true, created: 1, updated: 0, skipped: 0 };
+  }
   const base = import.meta.env.VITE_API_BASE_URL as string;
   if (!base) throw new Error("VITE_API_BASE_URL no está definido");
   if (!batchId) throw new Error("Falta 'batchId' para confirmar importación");
@@ -470,8 +548,16 @@ export async function importConfirm(batchId: string) {
 -------------------------------------------------------------- */
 export async function toggleProductoActivoAPI(id: string, activo: boolean) {
   const base = import.meta.env.VITE_API_BASE_URL as string;
-  if (!base) throw new Error("VITE_API_BASE_URL no está definido");
   if (!id) throw new Error("Falta 'id' de producto");
+  if (DEMO_MODE) {
+    const next = readDemoProductos().map((p) =>
+      (p.id ?? p.sku) === id ? { ...p, activo } : p
+    );
+    writeDemoProductos(next);
+    const updated = next.find((p) => (p.id ?? p.sku) === id);
+    return updated ?? { id, sku: id, name: "", uom: "UN", priceNet: 0, classification: "PT", activo };
+  }
+  if (!base) throw new Error("VITE_API_BASE_URL no está definido");
 
   const url = `${base}/api/v1/products/upd/${id}`;
   const res = await fetchWithTimeout(url, {
@@ -499,6 +585,18 @@ export interface ImportValidateResponse {
 }
 
 export async function downloadImportTemplate(): Promise<void> {
+  if (DEMO_MODE) {
+    const csv = "sku,nombre,unidad,precio\nPT-123,Producto Demo,UN,1000";
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "plantilla_import_demo.csv";
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(a.href);
+    a.remove();
+    return;
+  }
   const base = import.meta.env.VITE_API_BASE_URL as string;
   if (!base) throw new Error("VITE_API_BASE_URL no está definido");
 
@@ -535,6 +633,15 @@ export interface ProductosImportValidateResponse {
 }
 
 export async function productosImportValidate(file: File): Promise<ProductosImportValidateResponse> {
+  if (DEMO_MODE) {
+    return {
+      batchId: "demo-batch",
+      columns: ["sku", "nombre", "unidad", "precio"],
+      rows: [{ sku: "PT-123", nombre: "Producto Demo", unidad: "UN", precio: 1000 }],
+      errorsByRow: {},
+      warningsByRow: {},
+    };
+  }
   const base = import.meta.env.VITE_API_BASE_URL as string;
   if (!base) throw new Error("VITE_API_BASE_URL no está definido");
   if (!file) throw new Error("Debes adjuntar un archivo .csv");
@@ -563,6 +670,9 @@ export interface ProductosImportConfirmResponse {
 }
 
 export async function productosImportConfirm(batchId: string): Promise<ProductosImportConfirmResponse> {
+  if (DEMO_MODE) {
+    return { ok: true, created: 1, updated: 0, skipped: 0 };
+  }
   const base = import.meta.env.VITE_API_BASE_URL as string;
   if (!base) throw new Error("VITE_API_BASE_URL no está definido");
   if (!batchId) throw new Error("Falta 'batchId' para confirmar importación");

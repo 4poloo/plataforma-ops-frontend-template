@@ -5,6 +5,7 @@ import {
   type GestionProduccionRecord,
 } from "../../produccion/services/gestion-produccion.api";
 import { fetchDashboardSkusByOt } from "../services/dashboards.api";
+import { DEMO_MODE, loadDemoData } from "../../../global/demo/config";
 
 const STATUS_STYLES: Record<string, string> = {
   CREADA: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -39,13 +40,27 @@ const formatTime = (value: string): string => {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+const demoRange = (() => {
+  if (!DEMO_MODE) return { start: todayISO(), end: todayISO() };
+  const records = loadDemoData().gestion ?? [];
+  const dates = records
+    .map((r) => r.contenido?.fecha)
+    .filter(Boolean)
+    .map((d) => new Date(d as string).getTime())
+    .filter((t) => Number.isFinite(t));
+  if (dates.length === 0) return { start: todayISO(), end: todayISO() };
+  const min = new Date(Math.min(...dates)).toISOString().slice(0, 10);
+  const max = new Date(Math.max(...dates)).toISOString().slice(0, 10);
+  return { start: min, end: max };
+})();
+
 export default function DashboardProduccion() {
   const [records, setRecords] = useState<GestionProduccionRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState(() => todayISO());
-  const [endDate, setEndDate] = useState(() => todayISO());
+  const [startDate, setStartDate] = useState(() => demoRange.start);
+  const [endDate, setEndDate] = useState(() => demoRange.end);
   const [produccionPorOt, setProduccionPorOt] = useState<Record<string, number>>({});
   const [produccionError, setProduccionError] = useState<string | null>(null);
 

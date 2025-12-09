@@ -1,4 +1,5 @@
 import { API_ROOT } from "../../produccion/services/work-orders.api";
+import { DEMO_MODE, loadDemoData } from "../../../global/demo/config";
 
 export type User = {
   id: string;
@@ -54,6 +55,18 @@ const readErrorMessage = async (
 };
 
 export async function login(payload: LoginRequest): Promise<LoginResponse> {
+  if (DEMO_MODE) {
+    const alias = payload.alias.trim().toLowerCase();
+    const user =
+      loadDemoData().usuarios.find((u) => u.alias.toLowerCase() === alias) ??
+      loadDemoData().usuarios[0];
+    return {
+      success: true,
+      user,
+      token: "demo-token",
+      message: "Inicio de sesión demo",
+    };
+  }
   const body = {
     alias: String(payload.alias ?? "").trim(),
     password: payload.password,
@@ -113,6 +126,13 @@ export function readStoredUser(): User | null {
 }
 
 export async function getMe(): Promise<User> {
+  if (DEMO_MODE) {
+    const stored = readStoredUser();
+    if (stored) return stored;
+    const demo = loadDemoData().usuarios[0];
+    persistSession({ user: demo, token: "demo-token" });
+    return demo;
+  }
   const stored = readStoredUser();
   if (!stored) {
     throw new Error("Sesión no encontrada");

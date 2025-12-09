@@ -23,6 +23,8 @@ export type WorkOrderCreateInput = {
   contenido: WorkOrderContenido;
 };
 
+import { DEMO_MODE, loadDemoData, updateDemoData } from "../../../global/demo/config";
+
 const RAW_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
 const RAW_BASE_FALLBACK = (import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/+$/, "");
 const MERGED_BASE = (RAW_BASE_URL || RAW_BASE_FALLBACK).trim().replace(/\/+$/, "");
@@ -88,6 +90,18 @@ function adaptWorkOrder(raw: unknown): WorkOrder {
   };
 }
 
+const readDemoOrders = (): WorkOrder[] => loadDemoData().workOrders;
+const writeDemoOrders = (orders: WorkOrder[]) => {
+  updateDemoData((draft) => {
+    draft.workOrders = orders;
+  });
+};
+const nextDemoOt = () => {
+  const list = readDemoOrders();
+  const max = list.reduce((acc, item) => Math.max(acc, Number(item?.OT ?? 0)), 12000);
+  return max + 1;
+};
+
 async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text();
   if (!text) return {} as T;
@@ -105,6 +119,12 @@ export type ListWorkOrdersOptions = {
 };
 
 export async function listWorkOrders(options: ListWorkOrdersOptions = {}): Promise<WorkOrder[]> {
+  if (DEMO_MODE) {
+    const all = readDemoOrders();
+    const start = Math.max(0, options.skip ?? 0);
+    const end = typeof options.limit === "number" ? start + options.limit : undefined;
+    return all.slice(start, end);
+  }
   const params = new URLSearchParams();
   if (typeof options.skip === "number") params.set("skip", String(options.skip));
   if (typeof options.limit === "number") params.set("limit", String(options.limit));
@@ -123,6 +143,10 @@ export async function listWorkOrders(options: ListWorkOrdersOptions = {}): Promi
 export async function getWorkOrderByNumber(ot: string | number): Promise<WorkOrder | null> {
   const normalized = String(ot ?? "").trim();
   if (!normalized) return null;
+  if (DEMO_MODE) {
+    const found = readDemoOrders().find((item) => String(item.OT) === normalized);
+    return found ? { ...found } : null;
+  }
 
   const directUrl = `${WORK_ORDERS_URL}/${encodeURIComponent(normalized)}`;
   try {
@@ -150,6 +174,17 @@ export async function getWorkOrderByNumber(ot: string | number): Promise<WorkOrd
 export async function createWorkOrder(
   payload: WorkOrderCreateInput
 ): Promise<WorkOrder> {
+  if (DEMO_MODE) {
+    const normalizedOt = Number(payload.OT || nextDemoOt());
+    const order: WorkOrder = {
+      OT: normalizedOt,
+      contenido: payload.contenido,
+      estado: "CREADA",
+    };
+    const current = readDemoOrders();
+    writeDemoOrders([...current, order]);
+    return order;
+  }
   const res = await fetch(WORK_ORDERS_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -172,6 +207,11 @@ export async function createWorkOrder(
 }
 
 export async function downloadWorkOrdersTemplate(): Promise<{ blob: Blob; filename?: string }> {
+  if (DEMO_MODE) {
+    const csv = "OT;SKU;Cantidad;Linea;Encargado;Fecha\n12005;PT-001;500;AGUA;Ana Ríos;2025-09-14";
+    const blob = new Blob([csv], { type: "text/csv" });
+    return { blob, filename: "plantilla_ot_demo.csv" };
+  }
   const res = await fetch(TEMPLATE_URL, { method: "GET" });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -202,6 +242,10 @@ export type WorkOrderIntegrationEntry = {
 };
 
 export async function printWorkOrder(ot: string | number): Promise<{ blob: Blob; filename?: string }> {
+  if (DEMO_MODE) {
+    const blob = new Blob([`OT ${ot} — impresión demo`], { type: "text/plain" });
+    return { blob, filename: `ot_${ot}_demo.txt` };
+  }
   const url = `${WORK_ORDERS_URL}/${encodeURIComponent(String(ot))}/print`;
   const res = await fetch(url, {
     method: "GET",
@@ -234,6 +278,13 @@ export type WorkOrderRecipePrintPayload = {
 export async function printWorkOrderRecipe(
   payload: WorkOrderRecipePrintPayload
 ): Promise<{ blob: Blob; filename?: string }> {
+  if (DEMO_MODE) {
+    const blob = new Blob(
+      [`Receta OT ${payload.numeroOT} · ${payload.skuPT} · ${payload.cantidad} uds`],
+      { type: "text/plain" }
+    );
+    return { blob, filename: `receta_ot_${payload.numeroOT}_demo.txt` };
+  }
   const qs = new URLSearchParams();
   qs.set("skuPT", payload.skuPT);
   qs.set("cantidad", String(payload.cantidad));
@@ -259,6 +310,9 @@ export async function printWorkOrderRecipe(
 }
 
 export async function fetchNextWorkOrderFromDb(): Promise<number> {
+  if (DEMO_MODE) {
+    return nextDemoOt();
+  }
   const url = `${WORK_ORDERS_URL}/next`;
   const res = await fetch(url, { method: "GET" });
   if (!res.ok) {
@@ -271,6 +325,10 @@ export async function fetchNextWorkOrderFromDb(): Promise<number> {
 }
 
 export async function fetchLastWorkOrderNumber(): Promise<number> {
+  if (DEMO_MODE) {
+    const list = readDemoOrders();
+    return list.reduce((max, item) => Math.max(max, Number(item?.OT ?? 0)), 0);
+  }
   const url = `${WORK_ORDERS_URL}/last`;
   try {
     const res = await fetch(url, { method: "GET" });
@@ -330,6 +388,14 @@ export async function updateWorkOrderStatus(
   ot: string | number,
   estado: string
 ): Promise<void> {
+  if (DEMO_MODE) {
+    const normalized = String(ot);
+    const next = readDemoOrders().map((item) =>
+      String(item.OT) === normalized ? { ...item, estado } : item
+    );
+    writeDemoOrders(next);
+    return;
+  }
   const url = `${WORK_ORDERS_URL}/${encodeURIComponent(String(ot))}/estado`;
   const res = await fetch(url, {
     method: "PATCH",
@@ -347,6 +413,9 @@ export async function sendWorkOrdersIntegration(payload: {
   source: string;
   payload: WorkOrderIntegrationEntry[];
 }): Promise<void> {
+  if (DEMO_MODE) {
+    return;
+  }
   const res = await fetch(INTEGRATION_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -428,6 +497,10 @@ export async function fetchWorkOrderStatus(
   numero: string | number,
   env: string = STATUS_ENV
 ): Promise<WorkOrderStatusCode> {
+  if (DEMO_MODE) {
+    const found = readDemoOrders().find((item) => String(item.OT) === String(numero));
+    return found?.estado ?? "CREADA";
+  }
   const encoded = encodeURIComponent(String(numero));
   const qs = env ? `?env=${encodeURIComponent(env)}` : "";
   const url = `${WORK_ORDERS_URL}/${encoded}/status${qs}`;

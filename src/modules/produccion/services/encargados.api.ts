@@ -1,4 +1,5 @@
 import { API_ROOT } from "./work-orders.api";
+import { DEMO_MODE, loadDemoData, updateDemoData } from "../../../global/demo/config";
 
 export type Encargado = {
   _id: string;
@@ -28,12 +29,32 @@ const adaptEncargado = (item: unknown): Encargado => {
   };
 };
 
+const readDemoEncargados = () => loadDemoData().encargados;
+const writeDemoEncargados = (items: Encargado[]) => {
+  updateDemoData((draft) => {
+    draft.encargados = items;
+  });
+};
+
 export async function fetchEncargados(params?: {
   linea?: string | null;
   nombre?: string | null;
   limit?: number;
   skip?: number;
 }): Promise<Encargado[]> {
+  if (DEMO_MODE) {
+    const all = readDemoEncargados();
+    const filtered = all.filter((item) => {
+      const matchLinea = params?.linea ? item.linea.toLowerCase() === params.linea.toLowerCase() : true;
+      const matchNombre = params?.nombre
+        ? item.nombre.toLowerCase().includes(params.nombre.toLowerCase())
+        : true;
+      return matchLinea && matchNombre;
+    });
+    const start = Math.max(0, params?.skip ?? 0);
+    const end = typeof params?.limit === "number" ? start + params.limit : undefined;
+    return filtered.slice(start, end);
+  }
   const qs = new URLSearchParams();
   const limit = params?.limit ?? 100;
   const skip = params?.skip ?? 0;
@@ -58,6 +79,16 @@ export async function fetchEncargados(params?: {
 export async function createEncargado(
   payload: EncargadoPayload
 ): Promise<Encargado> {
+  if (DEMO_MODE) {
+    const nuevo: Encargado = {
+      _id: `enc-${Date.now()}`,
+      nombre: payload.nombre,
+      linea: payload.linea,
+      predeterminado: payload.predeterminado,
+    };
+    writeDemoEncargados([...readDemoEncargados(), nuevo]);
+    return nuevo;
+  }
   const res = await fetch(ENCARGADOS_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -85,6 +116,14 @@ export async function updateEncargado(
 ): Promise<Encargado> {
   const id = String(encargadoId ?? "").trim();
   if (!id) throw new Error("ID de encargado requerido para actualizar");
+  if (DEMO_MODE) {
+    const next = readDemoEncargados().map((item) =>
+      item._id === id ? { ...item, ...payload } : item
+    );
+    writeDemoEncargados(next);
+    const updated = next.find((item) => item._id === id) ?? null;
+    return updated ?? { _id: id, ...payload };
+  }
 
   const res = await fetch(`${ENCARGADOS_URL}/${encodeURIComponent(id)}`, {
     method: "PUT",

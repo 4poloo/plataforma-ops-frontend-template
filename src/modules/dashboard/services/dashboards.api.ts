@@ -1,5 +1,6 @@
 // src/modules/dashboard/services/dashboards.api.ts
 import { API_ROOT } from "../../produccion/services/work-orders.api";
+import { DEMO_MODE, loadDemoData } from "../../../global/demo/config";
 
 const DASHBOARD_URL = `${API_ROOT}/v1/dashboards`;
 
@@ -93,6 +94,11 @@ const extractQuantityForSku = (payload: unknown, sku?: string): number => {
 export async function fetchDashboardSkusByOt(ot: string | number, sku?: string): Promise<number> {
   const normalized = String(ot ?? "").trim();
   if (!normalized) return 0;
+  if (DEMO_MODE) {
+    const key = `${normalized}|${(sku ?? "").toString().toUpperCase()}`;
+    const data = loadDemoData().produccionPorOt;
+    return data[key] ?? 0;
+  }
 
   const url = `${DASHBOARD_URL}/ot/${encodeURIComponent(normalized)}/skus`;
   const res = await fetch(url, { method: "GET" });

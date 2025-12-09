@@ -2,8 +2,9 @@
 export type Product = { sku: string; nombre: string; unidad?: string };
 
 import { API_ROOT } from "./work-orders.api";
+import { DEMO_MODE, loadDemoData } from "../../../global/demo/config";
 
-const USE_MOCK = (import.meta.env.VITE_PRODUCTS_MOCK ?? "0") === "1";
+const USE_MOCK = DEMO_MODE || (import.meta.env.VITE_PRODUCTS_MOCK ?? "0") === "1";
 const PRODUCTS_URL = `${API_ROOT}/v1/products/by-mixed/`;
 const MAX_PAGE = 500;
 
@@ -86,15 +87,8 @@ export async function searchProducts(q: string): Promise<Product[]> {
 /* =========================
    MOCK DATA
    ========================= */
-const MOCK_PRODUCTS: Product[] = [
-  { sku: "801038", nombre: "Detergente Líquido 1L", unidad: "UN" },
-  { sku: "801039", nombre: "Detergente Líquido 5L", unidad: "UN" },
-  { sku: "700120", nombre: "Suavizante Primavera 1L", unidad: "UN" },
-  { sku: "700121", nombre: "Suavizante Primavera 5L", unidad: "UN" },
-  { sku: "500010", nombre: "Cloro Gel 1L", unidad: "UN" },
-  { sku: "500011", nombre: "Cloro Gel 5L", unidad: "UN" },
-  { sku: "300200", nombre: "Lavalozas Limón 1L", unidad: "UN" },
-  { sku: "300201", nombre: "Lavalozas Limón 5L", unidad: "UN" },
-  { sku: "100001", nombre: "Agua Desionizada 1L", unidad: "LT" },
-  { sku: "100002", nombre: "Agua Desionizada 20L", unidad: "LT" },
-];
+const MOCK_PRODUCTS: Product[] = loadDemoData().productos.map((p) => ({
+  sku: p.sku,
+  nombre: p.name,
+  unidad: p.uom ?? "UN",
+}));
